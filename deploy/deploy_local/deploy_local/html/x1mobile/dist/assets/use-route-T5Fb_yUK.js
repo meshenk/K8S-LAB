@@ -1,0 +1,1 @@
+import{g as r}from"./vendor-jMSiOebI.js";const o={to:[String,Object],url:String,replace:Boolean};function e({to:r,url:o,replace:e,$router:t}){r&&t?t[e?"replace":"push"](r):o&&(e?location.replace(o):location.href=o)}function t(){const o=r().proxy;return()=>e(o)}export{o as a,e as r,t as u};

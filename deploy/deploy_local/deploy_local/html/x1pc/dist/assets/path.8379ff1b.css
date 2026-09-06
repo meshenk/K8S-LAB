@@ -1,0 +1,1 @@
+.five-pointed-star{fill:none;stroke:red;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:var(--dashArray);stroke-dashoffset:var(--dashOffset);animation:strokeAnimation 2s forwards}@keyframes strokeAnimation{to{stroke-dashoffset:0}}

@@ -1,0 +1,24 @@
+# Terraform / cluster state
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+kubeconfig.yaml
+terraform/generated/
+*.log
+.DS_Store
+Thumbs.db
+
+# GitHub 单文件上限 100MB：业务 JAR、安装包、镜像包、压缩备份不入库
+*.jar
+*.exe
+*.tgz
+*.tar
+*.zip
+deploy/deploy_local/docker_images/
+deploy/deploy_local/deploy_local/docker-compose-linux-x86_64
+

@@ -1,0 +1,1 @@
+.p{fill:none;stroke:red;stroke-width:10;stroke-dasharray:var(--length);stroke-dashoffset:var(--length);animation:stroke 2s forwards}@keyframes stroke{to{stroke-dashoffset:0}}

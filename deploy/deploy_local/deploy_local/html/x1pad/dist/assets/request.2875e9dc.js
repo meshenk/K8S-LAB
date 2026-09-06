@@ -1,0 +1,1 @@
+import{b as t,m as a}from"./index.36428c14.js";const c=async r=>{try{const e=await t.post("/api/x1/device/cameraBlockeCurrent",r);return e.code===0?e.data||{}:(a.error(e.msg),{})}catch{return{}}},o=async r=>{try{const e=await t.post("/api/x1/device/cameraBlockeDetail",r);return e.code===0?e.data||{}:(a.error(e.msg),{})}catch{return{}}};export{c as a,o as g};

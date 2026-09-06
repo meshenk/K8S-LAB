@@ -1,0 +1,88 @@
+#cloud-config
+hostname: ${hostname}
+manage_etc_hosts: true
+timezone: Asia/Shanghai
+
+write_files:
+  - path: /usr/local/bin/bootstrap-rke2.sh
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      exec > >(tee -a /var/log/rke2-bootstrap.log) 2>&1
+      echo "=== rke2 agent bootstrap start $(date -Is) ==="
+
+      mkdir -p /etc/rancher/rke2
+      cat >/etc/rancher/rke2/config.yaml <<EOF
+      server: https://${server_ip}:9345
+      token: ${token}
+      node-name: ${hostname}
+      node-label:
+        - "role=worker"
+        - "node-role.kubernetes.io/worker=true"
+      EOF
+
+      %{ if use_china_mirror }
+      cat >/etc/rancher/rke2/registries.yaml <<'REGYAML'
+      mirrors:
+        docker.io:
+          endpoint:
+            - "https://docker.m.daocloud.io"
+            - "https://docker.nju.edu.cn"
+            - "https://registry-1.docker.io"
+      REGYAML
+      %{ endif }
+
+      if ! grep -q "${server_ip}" /etc/hosts; then
+        echo "${server_ip} ${server_name}" >> /etc/hosts
+      fi
+
+      export INSTALL_RKE2_TYPE=agent
+      %{ if rke2_version != "" }
+      export INSTALL_RKE2_VERSION="${rke2_version}"
+      %{ endif }
+
+      INSTALL_SCRIPT=/tmp/rke2-install.sh
+      %{ if use_china_mirror }
+      INSTALL_URL="https://rancher-mirror.rancher.cn/rke2/install.sh"
+      export INSTALL_RKE2_MIRROR=cn
+      %{ else }
+      INSTALL_URL="https://get.rke2.io"
+      %{ endif }
+
+      for attempt in 1 2 3 4 5 6 7 8; do
+        echo "downloading RKE2 installer (attempt $attempt) from $INSTALL_URL"
+        if curl -fsSL -o "$INSTALL_SCRIPT" "$INSTALL_URL"; then
+          chmod +x "$INSTALL_SCRIPT"
+          if "$INSTALL_SCRIPT"; then
+            break
+          fi
+        fi
+        if [ "$attempt" -eq 8 ]; then
+          echo "RKE2 installer failed after 8 attempts"
+          exit 1
+        fi
+        sleep 8
+      done
+
+      systemctl enable rke2-agent.service
+      systemctl restart rke2-agent.service || true
+
+      echo "waiting for rke2-agent to become active..."
+      for i in $(seq 1 90); do
+        if systemctl is-active --quiet rke2-agent.service; then
+          date -Is >/var/log/rke2-bootstrap.done
+          echo "=== rke2 agent bootstrap done $(date -Is) ==="
+          exit 0
+        fi
+        sleep 5
+      done
+
+      echo "timeout waiting for rke2-agent"
+      systemctl status rke2-agent.service --no-pager || true
+      journalctl -u rke2-agent --no-pager | tail -n 120 || true
+      exit 1
+
+runcmd:
+  - [/usr/local/bin/bootstrap-rke2.sh]

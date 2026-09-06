@@ -1,0 +1,96 @@
+#cloud-config
+hostname: ${hostname}
+manage_etc_hosts: true
+timezone: Asia/Shanghai
+
+write_files:
+  - path: /usr/local/bin/bootstrap-rke2.sh
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      exec > >(tee -a /var/log/rke2-bootstrap.log) 2>&1
+      echo "=== rke2 server bootstrap start $(date -Is) ==="
+
+      IP=$(ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1 | head -n1)
+      echo "detected ip=$IP hostname=${hostname}"
+      mkdir -p /etc/rancher/rke2
+
+      cat >/etc/rancher/rke2/config.yaml <<EOF
+      token: ${token}
+      write-kubeconfig-mode: "0644"
+      tls-san:
+        - ${hostname}
+        - $IP
+      node-name: ${hostname}
+      node-label:
+        - "role=control-plane"
+      %{ if control_plane_taint }
+      node-taint:
+        - "node-role.kubernetes.io/control-plane=true:NoSchedule"
+      %{ endif }
+      EOF
+
+      %{ if use_china_mirror }
+      cat >/etc/rancher/rke2/registries.yaml <<'REGYAML'
+      mirrors:
+        docker.io:
+          endpoint:
+            - "https://docker.m.daocloud.io"
+            - "https://docker.nju.edu.cn"
+            - "https://registry-1.docker.io"
+      REGYAML
+      %{ endif }
+
+      export INSTALL_RKE2_TYPE=server
+      %{ if rke2_version != "" }
+      export INSTALL_RKE2_VERSION="${rke2_version}"
+      %{ endif }
+
+      INSTALL_SCRIPT=/tmp/rke2-install.sh
+      %{ if use_china_mirror }
+      INSTALL_URL="https://rancher-mirror.rancher.cn/rke2/install.sh"
+      export INSTALL_RKE2_MIRROR=cn
+      %{ else }
+      INSTALL_URL="https://get.rke2.io"
+      %{ endif }
+
+      for attempt in 1 2 3 4 5 6 7 8; do
+        echo "downloading RKE2 installer (attempt $attempt) from $INSTALL_URL"
+        if curl -fsSL -o "$INSTALL_SCRIPT" "$INSTALL_URL"; then
+          chmod +x "$INSTALL_SCRIPT"
+          if "$INSTALL_SCRIPT"; then
+            break
+          fi
+        fi
+        if [ "$attempt" -eq 8 ]; then
+          echo "RKE2 installer failed after 8 attempts"
+          exit 1
+        fi
+        sleep 8
+      done
+
+      systemctl enable rke2-server.service
+      systemctl restart rke2-server.service || true
+
+      echo "waiting for API server..."
+      for i in $(seq 1 180); do
+        if [ -f /etc/rancher/rke2/rke2.yaml ]; then
+          if /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get --raw=/readyz >/dev/null 2>&1; then
+            echo "apiserver is ready"
+            date -Is >/var/log/rke2-bootstrap.done
+            echo "=== rke2 server bootstrap done $(date -Is) ==="
+            exit 0
+          fi
+        fi
+        sleep 5
+      done
+
+      echo "timeout waiting for apiserver"
+      systemctl status rke2-server.service --no-pager || true
+      journalctl -u rke2-server --no-pager | tail -n 120 || true
+      exit 1
+
+runcmd:
+  - [/usr/local/bin/bootstrap-rke2.sh]

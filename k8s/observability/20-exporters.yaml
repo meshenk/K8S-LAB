@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter
+  namespace: observability
+  labels:
+    app: node-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: node-exporter
+  ports:
+  - name: metrics
+    port: 9100
+    targetPort: 9100
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: observability
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+    spec:
+      hostNetwork: true
+      hostPID: true
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: node-exporter
+        image: docker.m.daocloud.io/prom/node-exporter:v1.8.2
+        args:
+        - --path.procfs=/host/proc
+        - --path.sysfs=/host/sys
+        - --path.rootfs=/host/root
+        - --web.listen-address=:9100
+        - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+        ports:
+        - containerPort: 9100
+          hostPort: 9100
+          name: metrics
+        resources:
+          requests: { cpu: 10m, memory: 16Mi }
+          limits: { memory: 48Mi }
+        volumeMounts:
+        - { name: proc, mountPath: /host/proc, readOnly: true }
+        - { name: sys, mountPath: /host/sys, readOnly: true }
+        - { name: root, mountPath: /host/root, readOnly: true, mountPropagation: HostToContainer }
+      volumes:
+      - { name: proc, hostPath: { path: /proc } }
+      - { name: sys, hostPath: { path: /sys } }
+      - { name: root, hostPath: { path: / } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-state-metrics
+  namespace: observability
+  labels:
+    app: kube-state-metrics
+spec:
+  selector:
+    app: kube-state-metrics
+  ports:
+  - name: http-metrics
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-state-metrics
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-state-metrics
+  template:
+    metadata:
+      labels:
+        app: kube-state-metrics
+    spec:
+      serviceAccountName: observability
+      nodeSelector:
+        kubernetes.io/hostname: rke2-server
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: kube-state-metrics
+        image: k8s.m.daocloud.io/kube-state-metrics/kube-state-metrics:v2.13.0
+        args:
+        - --port=8080
+        - --resources=pods,deployments,nodes,namespaces,services,daemonsets,statefulsets,replicasets
+        ports:
+        - containerPort: 8080
+        resources:
+          requests: { cpu: 10m, memory: 16Mi }
+          limits: { memory: 64Mi }
+        readinessProbe:
+          httpGet: { path: /healthz, port: 8080 }
+          periodSeconds: 10

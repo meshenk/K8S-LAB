@@ -1,0 +1,1 @@
+import{ae as s,ad as c,D as n,a9 as u,S as d}from"./vendor-vue.ced5175b.js";import"./vendor-antd.2261cd4e.js";import"./vendor-lodash.65d2b91f.js";const i={__name:"redirect",setup(p){const r=s(),t=c();return n(()=>{try{const{params:e,query:o}=r,{path:a}=e;t.replace({path:"/"+a,query:o})}catch(e){console.log(e)}}),(e,o)=>(d(),u("div"))}};export{i as default};

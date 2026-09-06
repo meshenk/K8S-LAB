@@ -1,0 +1,1 @@
+import{a2 as s,a3 as c,L as n,S as u,U as p}from"./vlib.e7835980.js";import"./monacoeditor.1e988593.js";const i={__name:"redirect",setup(l){const t=s(),r=c();return n(()=>{try{const{params:e,query:o}=t,{path:a}=e;r.replace({path:"/"+a,query:o})}catch(e){console.log(e)}}),(e,o)=>(u(),p("div"))}};export{i as default};

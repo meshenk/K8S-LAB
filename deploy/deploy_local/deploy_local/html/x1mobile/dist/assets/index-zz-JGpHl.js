@@ -1,0 +1,1 @@
+import{_ as r}from"./index-geccicEG.js";import{U as s,S as e,V as t}from"./vendor-jMSiOebI.js";const a={},o={class:"h-[100%] page"},n=[t("div",{class:"py-[3rem] px-[0.64rem] text-[1.4rem]"}," 2222 ",-1)];const m=r(a,[["render",function(r,t){return e(),s("div",o,n)}]]);export{m as default};

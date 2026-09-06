@@ -1,0 +1,11 @@
+cluster_name        = "rke2"
+image               = "22.04"
+worker_count        = 2
+server_cpus         = 2
+server_memory       = "4G"
+server_disk         = "40G"
+worker_cpus         = 2
+worker_memory       = "4G"
+worker_disk         = "30G"
+use_china_mirror    = true
+control_plane_taint = true

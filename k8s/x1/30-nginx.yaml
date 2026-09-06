@@ -1,0 +1,178 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x1-nginx-conf
+  namespace: x1
+data:
+  x1.conf: |
+    server {
+        listen 9999 default_server;
+        listen [::]:9999 default_server;
+        server_name _;
+        client_max_body_size 100M;
+        location /api/websocket {
+            rewrite ^/api/(websocket.*)$ /x1-admin-api/$1 break;
+            proxy_pass http://x1-admin-api:9092;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 86400;
+            proxy_send_timeout 86400;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+        location /api/ {
+            proxy_pass http://x1-admin-api:9092/x1-admin-api/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        location /api {
+            proxy_pass http://x1-admin-api:9092/x1-admin-api/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        location /x1-admin-api {
+            proxy_pass http://x1-admin-api:9092/x1-admin-api/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        location / {
+            root /usr/share/nginx/html/x1pc/dist;
+            index index.html;
+            add_header Cache-Control "no-cache, private";
+            expires -1s;
+            try_files $uri $uri/ /index.html;
+        }
+    }
+  x1mobile.conf: |
+    server {
+        listen 9998 default_server;
+        listen [::]:9998 default_server;
+        server_name _;
+        client_max_body_size 100M;
+        location /x1-mobile-api {
+            proxy_pass http://x1-mobile-api:9094/x1-mobile-api/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        location / {
+            root /usr/share/nginx/html/x1mobile/dist;
+            index index.html;
+            add_header Cache-Control "no-cache, private";
+            expires -1s;
+            try_files $uri $uri/ /index.html;
+        }
+    }
+  x1pad.conf: |
+    server {
+        listen 9995 default_server;
+        listen [::]:9995 default_server;
+        server_name _;
+        client_max_body_size 100M;
+        location /x1-admin-api {
+            proxy_pass http://x1-admin-api:9092/x1-admin-api/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        location /api/ {
+            proxy_pass http://x1-admin-api:9092/x1-admin-api/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        location /api {
+            proxy_pass http://x1-admin-api:9092/x1-admin-api/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        location / {
+            root /usr/share/nginx/html/x1pad/dist;
+            index index.html;
+            add_header Cache-Control "no-cache, private";
+            expires -1s;
+            try_files $uri $uri/ /index.html;
+        }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: x1-web
+  namespace: x1
+spec:
+  type: NodePort
+  selector: { app: x1-web }
+  ports:
+  - { name: pc, port: 9999, targetPort: 9999, nodePort: 30999 }
+  - { name: mobile, port: 9998, targetPort: 9998, nodePort: 30998 }
+  - { name: pad, port: 9995, targetPort: 9995, nodePort: 30995 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x1-web
+  namespace: x1
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
+  selector:
+    matchLabels: { app: x1-web }
+  template:
+    metadata:
+      labels: { app: x1-web, tier: web }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector: { matchLabels: { app: x1-web } }
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: nginx
+        image: nginx:1.27-alpine
+        ports:
+        - { containerPort: 9999 }
+        - { containerPort: 9998 }
+        - { containerPort: 9995 }
+        resources:
+          requests: { cpu: 20m, memory: 32Mi }
+          limits: { memory: 64Mi }
+        volumeMounts:
+        - { name: conf, mountPath: /etc/nginx/conf.d }
+        - { name: html, mountPath: /usr/share/nginx/html }
+        readinessProbe:
+          httpGet: { path: /, port: 9999 }
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: conf
+        configMap: { name: x1-nginx-conf }
+      - name: html
+        hostPath: { path: /data/x1/html, type: Directory }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: x1-web
+  namespace: x1
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: x1-web }

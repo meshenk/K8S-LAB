@@ -1,0 +1,129 @@
+services:
+  x1-admin-api:
+    image: admin:latest
+    container_name: x1-admin-api
+    ports:
+      - "9092:9092"
+    restart: always
+    depends_on:
+      - mysql
+      - redis
+      - minio
+    networks:
+      - app-network
+    volumes:
+      - D:/x1-docker/jar/logs/pc-logs:/app/logs/pc-logs
+
+  x1-mobile-api:
+    image: mobile:latest
+    container_name: x1-mobile-api
+    ports:
+      - "9094:9094"
+    restart: always
+    depends_on:
+      - mysql
+      - redis
+      - minio
+    networks:
+      - app-network
+    volumes:
+      - D:/x1-docker/jar/logs/mobile-logs:/app/logs/mobile-logs
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    command: --lower_case_table_names=1
+      --max_connections=1000
+      --max_user_connections=500
+      --sql_mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+    environment:
+      MYSQL_ROOT_PASSWORD: root@123456
+      MYSQL_DATABASE: x1
+      MYSQL_USER: iot_user
+      MYSQL_PASSWORD: J0ck@2023
+      MYSQL_DEFAULT_AUTHENTICATION_PLUGIN: caching_sha2_password
+      MYSQL_MAX_CONNECTIONS: 1000
+    volumes:
+      - D:/x1-docker/mysql/mysql-data:/var/lib/mysql
+      - D:/x1-docker/mysql/sql-scripts:/docker-entrypoint-initdb.d # 初始化SQL脚本目录
+      - D:/x1-docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf # 自定义配置文件
+    ports:
+      - "3306:3306"
+    restart: always
+    networks:
+      - app-network
+
+  redis:
+    image: redis:latest
+    container_name: redis-x1
+    volumes:
+      - D:/x1-docker/redis/redis-data:/data
+    ports:
+      - "6379:6379" # 主机6380端口 <- 容器内6379端口
+    restart: always
+    networks:
+      - app-network
+
+  minio:
+    image: minio:latest
+    command: --console-address ":9001"
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - D:/x1-docker/minio/data:/data
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:latest   #修改为latest
+    container_name: nginx
+    restart: always
+    volumes:
+      - D:/x1-docker/nginx/conf.d/:/etc/nginx/conf.d/
+      - D:/x1-docker/nginx/html:/usr/share/nginx/html
+    ports:
+      - "9999:9999"
+      - "9998:9998"
+      - "9997:9997"
+      - "9996:9996"
+      - "9995:9995"
+    networks:
+      - app-network
+  emqx:
+    image: emqx/emqx:4.4.19
+    container_name: emqx
+    restart: always
+    privileged: true
+    volumes:
+      # - D:/x1-docker/emqx/etc:/opt/emqx/etc:z
+      - D:/x1-docker/emqx/data:/opt/emqx/data:z
+      - D:/x1-docker/emqx/log:/opt/emqx/log:z
+    ports:
+      - "8081:8081"
+      - "1883:1883"
+      - "8080:8080"
+      - "8083:8083"
+      - "8084:8084"
+      - "8883:8883"
+      - "18083:18083"
+    environment:
+      - EMQX_DASHBOARD__DEFAULT_USER__USERNAME=admin
+      - EMQX_DASHBOARD__DEFAULT_USER__PASSWORD=admin123
+      - EMQX_NODE_NAME=emqx@10.118.105.68
+      - TZ=Asia/Shanghai
+    networks:
+      - app-network
+
+networks:
+  app-network:
+
+volumes:
+  mysql-data:
+  redis-data:
+  minio-data:
